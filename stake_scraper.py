@@ -154,7 +154,6 @@ class EventScraper:
                              timeout=5)
 
         self.__match_events = json.loads(resp.text)
-        # return self.match_events  | Used for in memory scraping.
 
     def save_event_file(self):
         with open(self.__event_file_name, "wb") as f:
@@ -165,7 +164,6 @@ class EventScraper:
             return pickle.load(f)
 
     def cycle(self):
-        # self.cleaner()
         self.scrape_events()
         self.save_event_file()
 

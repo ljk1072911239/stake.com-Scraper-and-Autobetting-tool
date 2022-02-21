@@ -1,11 +1,12 @@
 from stake_auth import AuthClass
-from stake_sport_id_updater import SportIdUpdater
 from stake_scraper import EventScraper
 from stake_scraper_markets import MoneyLine
 from stake_autobet import MoneyLineBet
 
 if __name__ == "__main__":
     # SAMPLE USAGE....
+
+    # Declaring variables, and creating objects #
 
     username = "STAKE_USERNAME"
     password = "STAKE_PASSWORD"
@@ -15,21 +16,21 @@ if __name__ == "__main__":
     bet_stake = 0.1
 
     main_user = AuthClass(username, password, anti_cpt_api_key)
-    # main_user.cycle()
-
-    sport_id_updater = SportIdUpdater()
-    sport_id_updater.cycle()
-
     events_table_tennis_pre = EventScraper("table_tennis", False)
-    events_table_tennis_pre.cycle()
-
     market_table_tennis_moneyline_pre = MoneyLine("table_tennis", False)
+    autobet_tabletennis_moneyline = MoneyLineBet(market_table_tennis_moneyline_pre.table_name, 0.1, "ltc", main_user)
+
+    # Do the authentication, ETL processes...
+    #main_user.cycle()
+    events_table_tennis_pre.cycle()
     market_table_tennis_moneyline_pre.cycle()
+
     df = market_table_tennis_moneyline_pre.dataframe
     print(df)
-    start_time = df["TIME"][0]
+
+    """start_time = df["TIME"][0]
     home_player = df["HOME"][0]
     away_player = df["AWAY"][0]
+    autobet_tabletennis_moneyline.home(start_time, home_player, away_player)"""
 
-    autobet_table_tennis_moneyline = MoneyLineBet(df, bet_stake, bet_currency, main_user)
-    autobet_table_tennis_moneyline.home(start_time, home_player, away_player)
+    input("PRESS ENTER TO EXIT")

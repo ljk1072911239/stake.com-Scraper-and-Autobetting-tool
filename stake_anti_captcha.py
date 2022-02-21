@@ -13,7 +13,7 @@ class AntiCaptcha:
     GET_TASK_RESULT_URL = "https://api.anti-captcha.com/getTaskResult"
 
     STAKE_LOGIN_URL = "https://stake.com/?action=login&modal=auth"
-    STAKE_SITE_KEY = "7830874c-13ad-4cfe-98d7-e8b019dc1742"  # SHOULD BE DYNAMIC...
+    STAKE_SITE_KEY = "7830874c-13ad-4cfe-98d7-e8b019dc1742"
 
     def __init__(self, api_key):
         self.__api_key = api_key
@@ -26,8 +26,9 @@ class AntiCaptcha:
     def api_key(self, api_key):
         self.__api_key = api_key
 
-    def post_request(self, json_payload):
-        # Custom post request method for AntiCaptcha
+    @staticmethod
+    def post_request(json_payload):
+        """Custom post request method for AntiCaptcha"""
         try:
             return json.loads(
                 requests.post(AntiCaptcha.CREATE_TASK_URL, headers=AntiCaptcha.HEADERS, data=json_payload).text)
@@ -36,7 +37,7 @@ class AntiCaptcha:
             print(e)
 
     def create_task(self):
-        # Creates the task returns the task id for checking...
+        """" Creates the task returns the task id for checking..."""
         payload = json.dumps({
             "clientKey": self.__api_key,
             "task":
@@ -50,20 +51,21 @@ class AntiCaptcha:
         resp = requests.post(AntiCaptcha.CREATE_TASK_URL, headers=AntiCaptcha.HEADERS, data=payload)
         return json.loads(resp.text)['taskId']
 
-    def get_task_result(self, taskid):
+    def get_task_result(self, task_id):
+        """ Get the task result response """
         payload = json.dumps({"clientKey": self.__api_key,
-                              "taskId": str(taskid)})
+                              "taskId": str(task_id)})
 
         resp = requests.post(AntiCaptcha.GET_TASK_RESULT_URL, headers=AntiCaptcha.HEADERS, data=payload)
         return json.loads(resp.text)
 
-    def wait_for_captcha_response(self, taskid, wait_seconds=240):
-
+    def wait_for_captcha_response(self, task_id, wait_seconds=240):
+        """ Wait until the task is finished and return the result"""
         now = time.time()
-        while time.time() - now <= wait_seconds:
+        while time.time() - now <= wait_seconds: # wait_seconds mean try until the seconds...
             time.sleep(0.1)
             try:
-                result = self.get_task_result(taskid)
+                result = self.get_task_result(task_id)
                 if result['status'] == "processing":
                     print("The captcha is still being processed...")
                     print("Waiting for 3 seconds before checking again...")
@@ -79,6 +81,7 @@ class AntiCaptcha:
                 print(e)
                 print("Trying again to get task result in 3 seconds...")
                 time.sleep(3)
+
         return False
 
     def cycle(self):

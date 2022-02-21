@@ -1,15 +1,23 @@
 import requests
 import json
 from stake_auth import AuthClass
+from stake_postgresql import get_table
+from abc import ABC, abstractmethod
+import pandas as pd
 
 
-class AutoBet:
+class AutoBet(ABC):
 
-    def __init__(self, dataframe, stake, currency, auth_object):
-        self.dataframe = dataframe
+    def __init__(self, table_name, stake, currency, auth_object):
+        self.table_name = table_name
         self.stake = stake
         self.currency = currency
         self.auth_object = auth_object
+
+    @abstractmethod
+    def get_match(self):
+        """ Function to get the given match from the database """
+        pass
 
     def send_bet_request(self, odds, odds_id):
         # DIRTY CODE AHEAD, COPIED AND PASTED API DATA AS IS...
@@ -69,22 +77,23 @@ class AutoBet:
 
 class MoneyLineBet(AutoBet):
 
-    def __init__(self, dataframe, stake, currency, auth_object):
+    def __init__(self, table_name, stake, currency, auth_object):
+        super().__init__(table_name, stake, currency, auth_object)
 
-        super().__init__(dataframe, stake, currency, auth_object)
+    def get_match(self, start_time, home_player, away_player):
+        match_df: pd.DataFrame = get_table(self.table_name)
+
+        match = match_df[(match_df["HOME"] == home_player)
+                         &
+                         (match_df["AWAY"] == away_player)
+                         &
+                         (match_df["TIME"] == start_time)]
+        return match.reset_index().iloc[0]
 
     def home(self, start_time, home_player, away_player):
-        for data in self.dataframe.itertuples():
-            if start_time == data.TIME:
-                if home_player == data.HOME and away_player == data.AWAY:
-                    return self.send_bet_request(data.HOME_ODDS, data.HOME_ODDS_ID)
-
-        return False  # In case of the data was not found in the df
+        data = self.get_match(start_time, home_player, away_player)
+        return self.send_bet_request(data.HOME_ODDS, data.HOME_ODDS_ID)
 
     def away(self, start_time, home_player, away_player):
-        for data in self.dataframe.itertuples():
-            if start_time == data.TIME:
-                if home_player == data.HOME and away_player == data.AWAY:
-                    return self.send_bet_request(data.AWAY_ODDS, data.AWAY_ODDS_ID)
-
-        return False  # In case of the data was not found in the df
+        data = self.get_match(start_time, home_player, away_player)
+        return self.send_bet_request(data.AWAY_ODDS, data.AWAY_ODDS_ID)

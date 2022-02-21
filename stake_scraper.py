@@ -2,31 +2,51 @@ import json
 import requests
 import pickle
 import pandas as pd
+from abc import ABC, abstractmethod
 
 from stake_auth import AuthClass
-from stake_sport_id_updater import SportIdUpdater
+from stake_postgresql import get_table, set_table
 
 
-class EventScraper:
+class EventFiles(ABC):
+
+    # Class for grouping event file related functions and variables
 
     def __init__(self, sport, live):
         self.sport = sport
         self.live = live
 
-        self.__match_events = None
-        self.dataframe = pd.DataFrame()
-
-        self.__event_file_name = sport + "_event.pkl"
         if self.live:
             self.__event_file_name = sport + "_event_live.pkl"
+        else:
+            self.__event_file_name = sport + "_event.pkl"
 
-        self.__actual_sport_id = None
-        self.get_sport_id()
+        self.dataframe = pd.DataFrame()
+        self.match_events = {}  # Must be used by EventScraper for storing event data
 
-    def get_sport_id(self):
-        # Reads the "sport_ids" file to get the correct sport ID.
-        with open("sport_ids.pkl", "rb") as f:
-            self.__actual_sport_id = pickle.load(f)[SportIdUpdater.SPORT_DICT[self.sport]]
+    def save_event_file(self):
+        with open(self.__event_file_name, "wb") as f:
+            pickle.dump(self.match_events, f)
+
+    def get_event_file(self):
+        with open(self.__event_file_name, "rb") as f:
+            return pickle.load(f)
+
+
+class EventScraper(EventFiles):
+
+    def __init__(self, sport, live):
+        super().__init__(sport, live)
+        self.__actual_sport_id = self.__get_sport_id()
+
+    def __get_sport_id(self):
+        """ Reads the sport_id from the database and returns it!"""
+
+        sport_id_dataframe = get_table("sport_ids")
+
+        sport_id = sport_id_dataframe[sport_id_dataframe["SPORT"] == self.sport].iloc[0].SPORT_ID
+
+        return sport_id
 
     def get_event_payload(self):
 
@@ -153,25 +173,24 @@ class EventScraper:
         resp = requests.post(AuthClass.API_URL, headers=AuthClass.get_headers(), data=self.get_event_payload(),
                              timeout=5)
 
-        self.__match_events = json.loads(resp.text)
-
-    def save_event_file(self):
-        with open(self.__event_file_name, "wb") as f:
-            pickle.dump(self.__match_events, f)
-
-    def get_event_file(self):
-        with open(self.__event_file_name, "rb") as f:
-            return pickle.load(f)
+        self.match_events = json.loads(resp.text)
 
     def cycle(self):
+        """ Helper function for the extract process! """
         self.scrape_events()
         self.save_event_file()
 
 
-class DataParser(EventScraper):
+class DataParser(EventFiles):
 
     def __init__(self, sport, live):
         super().__init__(sport, live)
+
+        self.start_time = []  # List of scraped start times...
+        self.home_team = []  # List of home players...
+        self.away_team = []  # List of away players...
+
+        self.table_name = ""  # Table name for the database. Must be filled in every subclass!
 
     def get_fixture_list(self):
 
@@ -182,11 +201,51 @@ class DataParser(EventScraper):
         fixture_list = []
         match_data = self.get_event_file()
         if self.live:
-            for tourns in match_data['data']['sport']['tournamentList']:
-                for match in tourns['fixtureList']:
+            for tournament in match_data['data']['sport']['tournamentList']:
+                for match in tournament['fixtureList']:
                     fixture_list.append(match)
         else:
             for match in match_data['data']['sport']['fixtureList']:
                 fixture_list.append(match)
 
         return fixture_list
+
+    def cleaner_base(self):
+        # This function is to clean all common data lists
+        self.start_time.clear()
+        self.home_team.clear()
+        self.away_team.clear()
+        self.dataframe = pd.DataFrame()
+
+    @abstractmethod
+    def cleaner_individual(self):
+        # This function is to scrape individual markets!
+        # like self.market or etc...
+        pass
+
+    def cleaner(self):
+        self.cleaner_base()
+        self.cleaner_individual()
+
+    @abstractmethod
+    def parse_data(self):
+        """ This function is to parse raw data from the fixture list! """
+        pass
+
+    @abstractmethod
+    def build_dataframe(self):
+        """ This function is to build the DataFrame which has the event and odds data """
+        pass
+
+    def load_dataframe(self):
+        """ Upload the dataframe to the database! """
+
+        set_table(self.dataframe, self.table_name)
+
+    def cycle(self):
+        """ Helper function to do the full ETL process """
+
+        self.cleaner()
+        self.parse_data()
+        self.build_dataframe()
+        self.load_dataframe()

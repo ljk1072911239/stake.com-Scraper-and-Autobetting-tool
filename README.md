@@ -26,6 +26,8 @@
 
 ### General usage, logic of the program
   - Just simply run [main.py](https://github.com/matthews-g/stake.com-Scraper-and-Autobetting-tool/blob/main/main.py) and check code to easily understand how it works, and how it should be extended.
+  - The tables in the database are handled automatically using prewritten functions. No need to worry about creating them before.
+  - For automatic sport id updates, add `import stake_sport_id_updater.py` to the main code, the update will get executed on every program launch.
 
 ### You should know
   - The authentication is only working for accounts **_without_** two factor authentication (2FA) enabled.
